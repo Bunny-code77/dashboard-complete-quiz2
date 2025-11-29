@@ -11,12 +11,39 @@ import {
   Settings,
   BarChart3,
   PlusCircle,
+  Filter,
 } from "lucide-react";
 import img3 from "../images/Dashboard.png";
 
+// Small hook for animated counters
+const useCountUp = (target, duration = 600) => {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const startTime = performance.now();
+
+    const step = (now) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const current = Math.round(start + (target - start) * progress);
+      setValue(current);
+      if (progress < 1) requestAnimationFrame(step);
+    };
+
+    requestAnimationFrame(step);
+  }, [target, duration]);
+
+  return value;
+};
+
 export default function Dashboard() {
+  const [showTips, setShowTips] = useState(true);
+const [showHashtagTip, setShowHashtagTip] = useState(true);
+const [showTimingTip, setShowTimingTip] = useState(true);
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [platformFilter, setPlatformFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -44,6 +71,7 @@ export default function Dashboard() {
 
     const headers = getAuthHeaders();
 
+    // current user
     axios
       .get("http://localhost:5000/api/auth/me", { headers })
       .then((res) => setUser(res.data))
@@ -52,6 +80,7 @@ export default function Dashboard() {
         navigate("/login");
       });
 
+    // posts
     axios
       .get("http://localhost:5000/api/posts", { headers })
       .then((res) => setPosts(res.data))
@@ -117,6 +146,7 @@ export default function Dashboard() {
         : "",
       status: post.status || "Draft",
     });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleDelete = async (id) => {
@@ -131,37 +161,56 @@ export default function Dashboard() {
     }
   };
 
+  // stats
   const totalPosts = posts.length;
   const scheduledCount = posts.filter((p) => p.status === "Scheduled").length;
   const draftCount = posts.filter((p) => p.status === "Draft").length;
   const publishedCount = posts.filter((p) => p.status === "Published").length;
 
+  const totalAnimated = useCountUp(totalPosts);
+  const scheduledAnimated = useCountUp(scheduledCount);
+  const draftsAnimated = useCountUp(draftCount);
+  const publishedAnimated = useCountUp(publishedCount);
+
   const cards = [
     {
       title: "Total Posts",
-      value: totalPosts,
+      value: totalAnimated,
       icon: BarChart3,
       description: "All posts you have created.",
     },
     {
       title: "Scheduled",
-      value: scheduledCount,
+      value: scheduledAnimated,
       icon: CalendarDays,
       description: "Posts scheduled for future publishing.",
     },
     {
       title: "Drafts",
-      value: draftCount,
+      value: draftsAnimated,
       icon: Clock,
       description: "Posts you are still working on.",
     },
     {
       title: "Published",
-      value: publishedCount,
+      value: publishedAnimated,
       icon: TrendingUp,
       description: "Posts already published.",
     },
   ];
+
+  // simple filters
+  const uniquePlatforms = Array.from(
+    new Set(posts.map((p) => p.platform).filter(Boolean))
+  );
+
+  const filteredPosts = posts.filter((post) => {
+    const statusOk =
+      statusFilter === "All" ? true : post.status === statusFilter;
+    const platformOk =
+      platformFilter === "All" ? true : post.platform === platformFilter;
+    return statusOk && platformOk;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -192,36 +241,69 @@ export default function Dashboard() {
         </section>
 
         {/* Stat cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-  {cards.map((card) => {
-    const Icon = card.icon;
-    return (
-      <div
-        key={card.title}
-        className="relative overflow-hidden rounded-2xl bg-white shadow-md border border-purple-100 px-4 py-5 flex flex-col gap-2"
-      >
-        {/* soft background accent like About values cards */}
-        <div className="absolute inset-0 opacity-70 pointer-events-none bg-gradient-to-br from-purple-100  to-purple-200" />
-        <div className="relative flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">
-            {card.title}
-          </h2>
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700">
-            <Icon className="w-4 h-4" />
-          </span>
-        </div>
-        <p className="relative text-2xl font-bold text-gray-900">
-          {card.value}
-        </p>
-        <p className="relative text-xs text-gray-600">
-          {card.description}
-        </p>
-      </div>
-    );
-  })}
-</section>
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {cards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.title}
+                className="relative overflow-hidden rounded-2xl bg-white shadow-md border border-purple-100 px-4 py-5 flex flex-col gap-2
+                           transition-transform transition-shadow duration-300 hover:-translate-y-1 hover:shadow-lg"
+              >
+                <div className="absolute inset-0 opacity-70 pointer-events-none bg-gradient-to-br from-purple-100 to-purple-500" />
+                <div className="relative flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-gray-900">
+                    {card.title}
+                  </h2>
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700">
+                    <Icon className="w-4 h-4" />
+                  </span>
+                </div>
+                <p className="relative text-2xl font-bold text-gray-900">
+                  {card.value}
+                </p>
+                <p className="relative text-xs text-gray-600">
+                  {card.description}
+                </p>
+              </div>
+            );
+          })}
+        </section>
 
-
+        {/* Filters summary bar */}
+        <section className="bg-green-100 rounded-xl shadow mb-8 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <Filter className="w-4 h-4 text-purple-600" />
+            <span className="font-medium">Quick filters</span>
+            <span className="text-xs text-gray-500">
+              Narrow down posts by status or platform.
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 rounded-md border-gray-300 px-3 text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="All">All statuses</option>
+              <option value="Draft">Draft</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="Published">Published</option>
+            </select>
+            <select
+              value={platformFilter}
+              onChange={(e) => setPlatformFilter(e.target.value)}
+              className="h-9 rounded-md border-gray-300 px-3 text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="All">All platforms</option>
+              {uniquePlatforms.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
 
         {/* Form + Quick Insights */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -234,7 +316,8 @@ export default function Dashboard() {
               <button
                 type="submit"
                 form="post-form"
-                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white hover:bg-purple-700"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-700 text-white
+                           hover:bg-blue-600 transform transition-transform duration-150 hover:-translate-y-0.5"
                 title="Create post"
               >
                 <PlusCircle className="w-4 h-4" />
@@ -255,7 +338,8 @@ export default function Dashboard() {
                     value={form.title}
                     onChange={handleChange}
                     required
-                    className="mt-1 block w-full h-11 rounded-md border-gray-300 px-3 text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                    className="mt-1 block w-full h-11 rounded-md border-gray-300 px-3 text-sm shadow-sm
+                               focus:ring-purple-500 focus:border-purple-500"
                     placeholder="New product launch post"
                   />
                 </div>
@@ -270,7 +354,8 @@ export default function Dashboard() {
                       name="platform"
                       value={form.platform}
                       onChange={handleChange}
-                      className="block w-full h-11 pl-9 pr-3 rounded-md border-gray-300 text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                      className="block w-full h-11 pl-9 pr-3 rounded-md border-gray-300 text-sm shadow-sm
+                                 focus:ring-purple-500 focus:border-purple-500"
                       placeholder="Instagram, Facebook..."
                     />
                   </div>
@@ -286,7 +371,8 @@ export default function Dashboard() {
                   value={form.content}
                   onChange={handleChange}
                   rows={3}
-                  className="mt-1 block w-full rounded-md border-gray-300 px-3 text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 px-3 text-sm shadow-sm
+                             focus:ring-purple-500 focus:border-purple-500"
                   placeholder="Write the caption or details of your post..."
                 />
               </div>
@@ -303,7 +389,8 @@ export default function Dashboard() {
                       name="scheduledAt"
                       value={form.scheduledAt}
                       onChange={handleChange}
-                      className="block w-full h-11 pl-9 pr-3 rounded-md border-gray-300 text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                      className="block w-full h-11 pl-9 pr-3 rounded-md border-gray-300 text-sm shadow-sm
+                                 focus:ring-purple-500 focus:border-purple-500"
                     />
                   </div>
                 </div>
@@ -315,7 +402,8 @@ export default function Dashboard() {
                     name="status"
                     value={form.status}
                     onChange={handleChange}
-                    className="mt-1 block w-full h-11 rounded-md border-gray-300 px-3 text-sm shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                    className="mt-1 block w-full h-11 rounded-md border-gray-300 px-3 text-sm shadow-sm
+                               focus:ring-purple-500 focus:border-purple-500"
                   >
                     <option value="Draft">Draft</option>
                     <option value="Scheduled">Scheduled</option>
@@ -325,7 +413,9 @@ export default function Dashboard() {
                 <div className="flex items-end gap-2">
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 w-full"
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-purple-700 text-white text-sm font-medium
+                               hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500
+                               transform transition-transform duration-150 active:scale-95 w-full"
                   >
                     {editingId ? "Update Post" : "Create Post"}
                   </button>
@@ -333,7 +423,8 @@ export default function Dashboard() {
                     <button
                       type="button"
                       onClick={resetForm}
-                      className="inline-flex items-center justify-center px-3 py-2 rounded-md border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                      className="inline-flex items-center justify-center px-3 py-2 rounded-md border border-gray-300 text-sm font-medium
+                                 text-gray-700 bg-white hover:bg-gray-50"
                     >
                       Cancel
                     </button>
@@ -344,37 +435,72 @@ export default function Dashboard() {
           </div>
 
           {/* Quick insights */}
-          <div className="bg-white rounded-xl shadow p-6 space-y-4">
+          <div className="bg-purple-100 rounded-xl shadow p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-900">
                 Quick Insights
               </h2>
-              <Settings className="w-4 h-4 text-gray-400" />
+              <button
+                type="button"
+                onClick={() => setShowTips((prev) => !prev)}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 text-gray-500"
+                title={showTips ? "Hide insights" : "Show insights"}
+              >
+                <Settings className="w-4 h-4" />
+              </button>
             </div>
-            <p className="text-xs text-gray-600">
-              Your posts perform better when you stay consistent and use
-              relevant hashtags. Plan at least 3 posts per week for each
-              platform.
-            </p>
-            <ul className="space-y-2 text-xs text-gray-700">
-              <li className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-green-500" />
-                Analyze engagement trends regularly.
-              </li>
-              <li className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-500" />
-                Schedule posts when your audience is most active.
-              </li>
-              <li className="flex items-center gap-2">
-                <Hash className="w-4 h-4 text-purple-500" />
-                Use a mix of trending and niche hashtags.
-              </li>
-            </ul>
+
+            {showTips ? (
+              <>
+                <p className="text-xs text-gray-600">
+                  Your posts perform better when you stay consistent and use
+                  relevant hashtags. Plan at least 3 posts per week for each
+                  platform.
+                </p>
+                <ul className="space-y-2 text-xs text-gray-700">
+                  <li className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                    Analyze engagement trends regularly.
+                  </li>
+
+                  {showTimingTip && (
+                    <li className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-500" />
+                      <span>Schedule posts when your audience is most active.</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowTimingTip(false)}
+                        className="ml-auto text-[10px] text-gray-400 hover:text-gray-600"
+                      >
+                        hide
+                      </button>
+                    </li>
+                  )}
+
+                  {showHashtagTip && (
+                    <li className="flex items-center gap-2">
+                      <Hash className="w-4 h-4 text-purple-500" />
+                      <span>Use a mix of trending and niche hashtags.</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowHashtagTip(false)}
+                        className="ml-auto text-[10px] text-gray-400 hover:text-gray-600"
+                      >
+                        hide
+                      </button>
+                    </li>
+                  )}
+                </ul>
+              </>
+            ) : (
+              <p className="text-xs text-gray-500 italic">
+                Insights hidden. Click the settings icon to show again.
+              </p>
+            )}
           </div>
         </section>
-
         {/* Posts table */}
-        <section className="bg-[#287379] border border-green-100 rounded-xl shadow-sm p-6">
+        <section className="bg-[#287378] border border-green-100 rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white">
               Your Scheduled Posts
@@ -387,55 +513,65 @@ export default function Dashboard() {
 
           {loading ? (
             <p className="text-sm text-gray-500">Loading posts...</p>
-          ) : posts.length === 0 ? (
-            <p className="text-sm text-white">
-              No posts yet. Use the form above to create your first post.
-            </p>
+          ) : filteredPosts.length === 0 ? (
+            <div className="bg-green-100 rounded-lg border border-line border-purple-200 p-6 text-center">
+              <p className="text-sm font-medium text-black mb-1">
+                No posts match your filters
+              </p>
+              <p className="text-xs text-black mb-3">
+                Try adjusting the filters above or create a new post.
+              </p>
+              
+            </div>
           ) : (
-            <div className="overflow-x-auto bg-[#287379] rounded-lg">
+            <div className="overflow-x-auto bg-white rounded-lg">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-[#287379]">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-white">
+                  <tr className="border-b bg-gray-50">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
                       Title
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-white">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
                       Platform
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-white">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
                       Scheduled At
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-white">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
                       Status
                     </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-white">
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {posts.map((post) => (
-                    <tr key={post._id} className="border-b last:border-0">
-                      <td className="px-3 py-2 text-white">
+                  {filteredPosts.map((post) => (
+                    <tr
+                      key={post._id}
+                      className="border-b last:border-0 transition-colors duration-200 hover:bg-purple-50/40"
+                    >
+                      <td className="px-3 py-2 text-gray-900">
                         {post.title || "-"}
                       </td>
-                      <td className="px-3 py-2 text-white">
+                      <td className="px-3 py-2 text-gray-700">
                         {post.platform || "-"}
                       </td>
-                      <td className="px-3 py-2 text-white">
+                      <td className="px-3 py-2 text-gray-700">
                         {post.scheduledAt
                           ? new Date(post.scheduledAt).toLocaleString()
                           : "-"}
                       </td>
                       <td className="px-3 py-2">
                         <span
-                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            post.status === "Published"
-                              ? "bg-green-100 text-green-700"
-                              : post.status === "Scheduled"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                            transition-transform duration-150 hover:scale-105 ${
+                              post.status === "Published"
+                                ? "bg-green-100 text-green-700"
+                                : post.status === "Scheduled"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-gray-100 text-gray-700"
+                            }`}
                         >
                           {post.status || "Draft"}
                         </span>
